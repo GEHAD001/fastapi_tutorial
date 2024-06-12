@@ -68,7 +68,7 @@ class PostsLinePaginator(BaseModel):
     current_page: int
     has_next: bool
     has_pre: bool
-    no_pages: List[int]
+    no_pages: int
     result: List[PostLine]
 
 

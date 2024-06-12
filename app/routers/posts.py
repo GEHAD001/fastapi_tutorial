@@ -1,11 +1,10 @@
+from functools import cache
 from typing import Annotated
 from fastapi import Depends, HTTPException,  status, APIRouter
-from app.utils import tuples_to_pydantic_model
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
 from app.routers.auth_utils import get_user_from_token
-
 from .. import models
 from ..database import get_db
 from ..schemas.postSchemas import  *
@@ -14,6 +13,8 @@ router = APIRouter(
     prefix="/posts", # Like Common Factor for these router
     tags=["Posts"] # Dived These End-Points into groups or categories
 )
+
+
 
 @router.get('')
 async def get_all_posts(user: models.User = Depends(get_user_from_token),db: Session = Depends(get_db), page: int = 1, per_page: int = 5) -> PostPaginationResponse:
@@ -56,20 +57,23 @@ async def get_all_me_posts(user: models.User = Depends(get_user_from_token), db:
 
 
 
+# async def get_posts_time_line(user: Annotated[models.User, Depends(get_user_from_token)], db: Session = Depends(get_db), page: int = 1, per_page: int = 10):  
 @router.get('/time-line')
-async def get_posts_time_line(user: Annotated[models.User, Depends(get_user_from_token)], db: Session = Depends(get_db), page: int = 1, per_page: int = 10) -> PostsLinePaginator:
-    # Keys used in pydantic and values for db query
-
+async def get_posts_time_line(user: Annotated[models.User, Depends(get_user_from_token)], db: Session = Depends(get_db), page: int = 1, per_page: int = 10) -> PostsLinePaginator:  
     count: int = db.query(models.Post.id).count()
+
     if not count:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'no posts')
     
-    no_pages = list(range(1, (count // per_page + (1 if count % per_page != 0 else 0)) + 1 ))
-    if page not in no_pages:
+    no_pages = (count // per_page) + (1 if count % per_page != 0 else 0)
+    if page > no_pages:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'page {page} out of range.')
     
     skip: int = (page - 1) * per_page
 
+
+
+# Keys used in pydantic and values for db query
     fields = {
         'post' : models.Post,
         'no_likes': func.count(models.Likes.user_id).label('no_like')
@@ -85,16 +89,17 @@ async def get_posts_time_line(user: Annotated[models.User, Depends(get_user_from
             .offset(skip) \
             .all()
     
+    # corresponding values of post with fields via zip function, then convert it to dict, then unpack the dict to pass it to PostLine Object Model
+    posts_pydantic = [PostLine(**dict(zip(fields.keys(), post))) for post in posts]
 
     
-    posts_pydantic: List[PostLine] = []
-
-    # convert from tuple to pydantic model object
-    for post in posts:
-        data: dict = tuples_to_pydantic_model(keys=(*fields.keys(),), values=post)
-        posts_pydantic.append(PostLine(**data))
-    
-    return PostsLinePaginator(result=posts_pydantic, count=count, no_pages=no_pages, current_page=page, has_next=(page != no_pages[-1]), has_pre=(no_pages != 0 and page != 1))
+    return PostsLinePaginator(
+        result=posts_pydantic,
+        count=count,
+        no_pages=no_pages,
+        current_page=page, 
+        has_next=page != no_pages, 
+        has_pre=page > 1)
 
 
 @router.get('/{id}')
@@ -149,4 +154,3 @@ async def delete_post(id: int, user: models.User = Depends(get_user_from_token),
 
     post_query.delete(synchronize_session=False)
     db.commit()
-

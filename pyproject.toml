@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "poetry_fastapi_app"
+version = "0.1.0"
+description = ""
+authors = ["GEHAD001 <freelight665@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = {extras = ["all"], version = "^0.111.0"}
+sqlalchemy = "^2.0.30"
+psycopg = {extras = ["binary"], version = "^3.1.19"}
+pyjwt = "^2.8.0"
+passlib = {extras = ["bcrypt"], version = "^1.7.4"}
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

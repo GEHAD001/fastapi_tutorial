@@ -13,14 +13,3 @@ def get_password_hash(password: str) -> str:
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password,hashed_password)
-
-
-def tuples_to_pydantic_model(keys: Tuple, values: Tuple) -> Dict:
-    if len(keys) != len(values):
-        raise
-
-    dict_value = {}
-    for i in range(len(keys)):
-        dict_value[keys[i]] = values[i]
-    
-    return dict_value

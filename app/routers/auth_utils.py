@@ -9,7 +9,7 @@ from app.schemas.tokenSchema import  TokenData
 from ..config import ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, REFRESH_TOKEN_EXPIRE_DAYS, SECRET_KEY,oauth2_scheme
 from .. import models, utils
 from ..database import get_db
-from typing import Annotated
+from typing import Annotated, Dict
 
 # [*] not decalred in our model
 # async def get_current_active_user(
@@ -39,7 +39,10 @@ async def create_refresh_token(user_id: int) -> str:
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-async def validate_refresh_token(refresh_token: str) -> None:
+async def validate_refresh_token(refresh_token: str) -> Dict | None:
+    """
+    decode then check refresh token expirations, return payload or raise an exception.
+    """
     try:
         payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
         if datetime.utcnow() > datetime.fromtimestamp(payload.get("exp")):

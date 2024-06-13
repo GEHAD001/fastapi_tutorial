@@ -17,56 +17,78 @@ router = APIRouter(
 
 
 @router.get('')
-async def get_all_posts(user: models.User = Depends(get_user_from_token),db: Session = Depends(get_db), page: int = 1, per_page: int = 5) -> PostPaginationResponse:
-    skip: int = ( page - 1 ) * per_page
-    count = db.query(models.Post.id).count()
-    pages_count = count // per_page + (1 if count % per_page else 0) # 32 // 10 = 3 + is still has data ? yes then + 1 : no then + 0 => 4
-
-    posts = db.query(models.Post).limit(per_page).offset(skip).all()
+async def search_on_posts(user: models.User = Depends(get_user_from_token),db: Session = Depends(get_db), q:str = '', page: int = 1, per_page: int = 5) -> PostsLinePaginator:
+    count = db.query(models.Post.id).where(models.Post.content.contains(q)).count()
+    if not count:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No Posts")
     
-    response = {
-        "count" : len(posts),
-        "page" : page,
-        "pages_count": [page for page in range(1, pages_count+1)],
-        "posts" : posts
+    no_pages = count // per_page + (1 if count % per_page else 0) # 32 // 10 = 3 + is still has data ? yes then + 1 : no then + 0 => 4
+    
+    if page > no_pages or page < 1: # Here Should at leaset the page = 1
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'page {page} out of range.')
+
+    skip: int = ( page - 1 ) * per_page
+
+    posts = db.query(models.Post, func.count(models.Likes.user_id)) \
+            .outerjoin(models.Likes, models.Post.id == models.Likes.post_id) \
+            .where(models.Post.content.contains(q)) \
+            .group_by(models.Post.id)\
+            .order_by(desc(models.Post.created_at)) \
+            .limit(per_page) \
+            .offset(skip) \
+            .all()
+
+    posts_pydantic = [PostLine(**dict(zip(['post', 'no_likes'], post))) for post in posts]
+    
+    pagination = {
+        "count" : count,
+        "current_page" : page,
+        "has_next": page != no_pages,
+        "has_pre": page != 1, # Other Cases All Handel it Before Reach Here.
+        "no_pages": no_pages
     }
-    return response
-
-
-
+    return PostsLinePaginator(result=posts_pydantic, **pagination)
 
 @router.get('/me')
-async def get_all_me_posts(user: models.User = Depends(get_user_from_token), db: Session = Depends(get_db), q: str='', page: int = 1, per_page: int = 5) -> PostPaginationResponse:
-    print(q)
-    skip: int = ( page - 1 ) * per_page
-
+async def get_all_me_posts(user: models.User = Depends(get_user_from_token), db: Session = Depends(get_db), q: str='', page: int = 1, per_page: int = 5) -> PostsLinePaginator:
     count = db.query(models.Post.id).filter(models.Post.user_id == user.id, models.Post.title.contains(q)).count()
-
-    pages_count = count // per_page + (1 if count % per_page else 0)
-    posts = db.query(models.Post).filter(models.Post.user_id == user.id, models.Post.title.contains(q)).limit(per_page).offset(skip).all()
-
+    if not count:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Still Doesn't has any Posts")
     
-    response = {
-        "count" : len(posts),
-        "page" : page,
-        "pages_count": [page for page in range(1, pages_count+1)],
-        "posts" : posts
+    no_pages = count // per_page + (1 if count % per_page else 0)
+    if page > no_pages or page < 1: 
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'page {page} out of range.')
+    
+    skip: int = ( page - 1 ) * per_page
+    
+    posts = db.query(models.Post, func.count(models.Likes.user_id)) \
+            .outerjoin(models.Likes, models.Post.id == models.Likes.post_id) \
+            .where(models.Post.user_id == user.id, models.Post.title.contains(q)) \
+            .group_by(models.Post.id) \
+            .order_by(desc(models.Post.created_at)) \
+            .limit(per_page) \
+            .offset(skip) \
+            .all()
+
+    posts_pydantic: List[PostLine] = [PostLine(**dict(zip(['post', 'no_likes'], post))) for post in posts]
+    pagination = {
+        "count" : count,
+        "current_page" : page,
+        "has_next": page != no_pages,
+        "has_pre": page != 1,
+        "no_pages": no_pages
     }
-    return response
+    
+    return PostsLinePaginator(result=posts_pydantic, **pagination)
 
-
-
-
-# async def get_posts_time_line(user: Annotated[models.User, Depends(get_user_from_token)], db: Session = Depends(get_db), page: int = 1, per_page: int = 10):  
 @router.get('/time-line')
-async def get_posts_time_line(user: Annotated[models.User, Depends(get_user_from_token)], db: Session = Depends(get_db), page: int = 1, per_page: int = 10) -> PostsLinePaginator:  
+async def get_posts_time_line(user: Annotated[models.User, Depends(get_user_from_token)], db: Session = Depends(get_db), q:str = '', page: int = 1, per_page: int = 10) -> PostsLinePaginator:  
     count: int = db.query(models.Post.id).count()
-
     if not count:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'no posts')
     
     no_pages = (count // per_page) + (1 if count % per_page != 0 else 0)
-    if page > no_pages:
+    if page > no_pages or page < 1:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'page {page} out of range.')
     
     skip: int = (page - 1) * per_page
@@ -101,18 +123,20 @@ async def get_posts_time_line(user: Annotated[models.User, Depends(get_user_from
         has_next=page != no_pages, 
         has_pre=page > 1)
 
-
 @router.get('/{id}')
-async def get_post(id: int, user: models.User = Depends(get_user_from_token), db: Session = Depends(get_db)) -> PostResponse:
-    post : dict | None = db.query(models.Post).get(id)
-    if not post:
+async def get_post(id: int, user: models.User = Depends(get_user_from_token), db: Session = Depends(get_db)) -> PostLine:
+    post : dict | None = db.query(models.Post, func.count(models.Likes.user_id).label('no_likes')) \
+    .join(models.Likes, models.Post.id == models.Likes.post_id) \
+    .where(models.Post.id == id) \
+    .group_by(models.Post.id) \
+    .first()
+    if post is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"post with id {id} doesn't exisit")
-    return post
-
+    
+    return PostLine(**dict(zip(['post', 'no_likes'], post)))
 
 @router.post('',status_code=status.HTTP_201_CREATED)
 async def create_post(payload: CreatePostSchema, user: models.User = Depends(get_user_from_token), db: Session = Depends(get_db)) -> CreatePostResponseSchema:
-    
     new_post = models.Post(**payload.model_dump(),user_id=user.id) # create Object Model
     db.add(new_post) # Do INSERT operation for Object Model
     db.commit() 
@@ -138,7 +162,6 @@ async def update_post(id: int, payload: UpdatePostSchema, user: models.User = De
     return post
 
 
-
 #? NOTE: Response 204 Should Don't Send Data Back, This Is The Mechaneciem Of The 204 Response
 @router.delete('/{id}',status_code=status.HTTP_204_NO_CONTENT)
 async def delete_post(id: int, user: models.User = Depends(get_user_from_token), db: Session = Depends(get_db)):
@@ -151,6 +174,5 @@ async def delete_post(id: int, user: models.User = Depends(get_user_from_token),
     if post.user_id != user.id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"unauthorized to do this action")
     
-
     post_query.delete(synchronize_session=False)
     db.commit()

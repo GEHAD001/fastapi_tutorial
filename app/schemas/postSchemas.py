@@ -9,7 +9,7 @@ from typing import List
 class BasePostSchema(BaseModel):
     title: str # required Field
     content: str # required Field
-    created_at: datetime
+    # created_at: datetime
     published: bool = True # has default value
 
 
@@ -27,41 +27,27 @@ class BasePostSchema(BaseModel):
 class CreatePostSchema(BasePostSchema):
     pass
 
-class UpdatePostSchema(BasePostSchema):
-    pass
-
-# RESPONSE Validator
-
-# class PostResponseSchema(BasePostSchema):
-#     id: int
-#     user_id: int
-#     created_at: datetime
-#     user: userSchemas.UserResponse
-
-class PostResponse(BasePostSchema):
-    id: int
-    user: userSchemas.UserResponse
-    
-class PostPaginationResponse(BaseModel):
-    count: int
-    page: int
-    pages_count: list
-    posts: List[PostResponse] # Should Given The Type Here To Serialize Object Model into JSON or Dict
-
-
-
 class CreatePostResponseSchema(BasePostSchema):
     id: int
     user_id: int
 
+class UpdatePostSchema(BasePostSchema):
+    pass
 
 class UpdatePostResponseSchema(BasePostSchema):
     id: int
     user_id: int
 
+
+
+class PostResponse(BasePostSchema):
+    id: int
+    user: userSchemas.UserResponse
+
 class PostLine(BaseModel):
     post: PostResponse
     no_likes: int
+
 
 class PostsLinePaginator(BaseModel):
     count: int

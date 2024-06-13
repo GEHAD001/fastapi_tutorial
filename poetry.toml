@@ -1,2 +1,6 @@
 [virtualenvs]
 create = true
+
+[virtualenvs.options]
+no-pip = false
+no-setuptools = false

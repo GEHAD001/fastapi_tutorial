@@ -26,11 +26,11 @@ class User(Base):
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
 
 
-class File(Base):
-    __tablename__ = "files"
-    id = Column(Integer, primary_key=True, index=True)
-    filename = Column(String, index=True)
-    dir = Column(String)
+# class File(Base):
+#     __tablename__ = "files"
+#     id = Column(Integer, primary_key=True, index=True)
+#     filename = Column(String, index=True)
+#     dir = Column(String)
 
 class Likes(Base):
     __tablename__ = "likes"

@@ -4,3 +4,5 @@ virtual_dir.md
 app/__pycache__/
 app/routers/__pycache__/
 app/schemas/__pycache__/
+alembic/__pycache__
+alembic/versions/__pycache__

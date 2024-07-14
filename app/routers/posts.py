@@ -1,3 +1,4 @@
+import asyncio
 from functools import cache
 from typing import Annotated
 from fastapi import Depends, HTTPException,  status, APIRouter
@@ -29,6 +30,7 @@ async def search_on_posts(user: models.User = Depends(get_user_from_token),db: S
 
     skip: int = ( page - 1 ) * per_page
 
+    # return List of Tuples Contain Post Object & no_likes int value
     posts = db.query(models.Post, func.count(models.Likes.user_id)) \
             .outerjoin(models.Likes, models.Post.id == models.Likes.post_id) \
             .where(models.Post.content.contains(q)) \
@@ -38,6 +40,7 @@ async def search_on_posts(user: models.User = Depends(get_user_from_token),db: S
             .offset(skip) \
             .all()
 
+    # Convert Each Tuple into dict then validate it via creating Pydantic Object to make it serializable.
     posts_pydantic = [PostLine(**dict(zip(['post', 'no_likes'], post))) for post in posts]
     
     pagination = {
@@ -176,3 +179,13 @@ async def delete_post(id: int, user: models.User = Depends(get_user_from_token),
     
     post_query.delete(synchronize_session=False)
     db.commit()
+
+# from time import sleep
+# async def after_insert_listener(mapper, connection, target):
+#     print(f"Inserted post with title: {target.title}")
+#     await asyncio.sleep(5)
+
+
+# from sqlalchemy import create_engine, event
+# # Attach event listener
+# event.listen(models.Post, 'after_insert', after_insert_listener)

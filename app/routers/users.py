@@ -1,5 +1,6 @@
 from typing import Annotated
-from fastapi import Depends, HTTPException, status, APIRouter
+from fastapi import Depends, HTTPException, Request, status, APIRouter
+from redis import Redis
 from sqlalchemy.orm import Session
 
 from app.routers.auth_utils import get_user_from_token
@@ -30,8 +31,27 @@ async def create_user(user: Annotated[models.User, Depends(get_user_from_token)]
     db.refresh(user_object)
     return user_object
 
+@router.patch('/me')
+async def patch_user(request: Request, payload: dict, user: Annotated[models.User, Depends(get_user_from_token)], db: Annotated[Session, Depends(get_db)]):
+    if password:= payload.get('password'):
+        payload['password'] = utils.get_password_hash(password)
+    
+    db.query(models.User).filter(models.User.email == user.email).update({**payload},synchronize_session=False)
+    db.commit()
+
+    # In Redis, a pipeline is a feature that allows you to send multiple commands to the server without waiting for the replies of each command, thus reducing the latency of round trips. The server executes all commands in sequence and returns all responses at once.
+    redis_cli: Redis = request.app.state.redis_cli
+    tokens = redis_cli.keys(f"{user.id}:*")
+    if tokens:
+        pipeline = redis_cli.pipeline()
+        for token in tokens:
+            pipeline.delete(token)
+        pipeline.execute()
+    return user
+    
+
 @router.get('')
-async def get_all_users(user: Annotated[models.User, Depends(get_user_from_token)], db: Session = Depends(get_db)) -> list[userSchemas.UserResponse]:
+async def get_all_users(db: Session = Depends(get_db)) -> list[userSchemas.UserResponse]:
     users = db.query(models.User).all()
     return users
 
@@ -47,3 +67,4 @@ async def get_user(id: int, db: Session = Depends(get_db)) -> userSchemas.UserRe
 @router.get('/me/')
 def read_user_me(user: Annotated[models.User, Depends(get_user_from_token)]) -> userSchemas.UserResponse:
     return user
+

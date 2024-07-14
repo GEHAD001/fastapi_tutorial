@@ -21,6 +21,19 @@ class UserCreate(UserBase):
 
         return value
 
+# class UserPatch(BaseModel):
+#     id: int
+#     email: EmailStr | None
+#     password: str | None
+
+
+#     @field_validator('password')
+#     def password_validator(value):
+#         if len(value) < 7:
+#             raise ValueError("Password Should Contain at Leaset 8 Character")
+
+#         return value
+
 
 #* RESPONSE VALIDATOR
 
